@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>กระโดดยิงเหรียญ</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #111; font-family: system-ui, -apple-system, sans-serif; touch-action: none; }
+canvas { display: block; width: 100vw; height: 100vh; background: #79d7ff; }
+
+/* Score & Overlay UI */
+#score { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 14px; background: rgba(255,255,255,0.92); padding: 6px 14px; border-radius: 20px; font-weight: 800; font-size: 14px; z-index: 10; box-shadow: 0 3px 10px rgba(0,0,0,0.2); }
+#msg { position: absolute; top: 25%; left: 50%; transform: translateX(-50%); text-align: center; background: rgba(255,255,255,0.95); padding: 18px 24px; border-radius: 20px; font-weight: 800; font-size: 18px; display: none; z-index: 20; box-shadow: 0 5px 20px rgba(0,0,0,0.25); width: 80%; max-width: 290px; }
+
+/* Controller Layout */
+.pad-group { position: absolute; bottom: max(14px, env(safe-area-inset-bottom)); z-index: 15; display: flex; gap: 6px; pointer-events: auto; }
+#left-pad { left: max(10px, env(safe-area-inset-left)); }
+#right-pad { right: max(10px, env(safe-area-inset-right)); flex-direction: column; align-items: flex-end; gap: 8px; }
+
+.btn { border: 0; font-weight: 900; color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 0 rgba(0,0,0,0.35); outline: none; -webkit-tap-highlight-color: transparent; }
+.btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,0.35); }
+
+/* Direction Pad */
+.btn-d { width: 46px; height: 46px; font-size: 16px; border-radius: 12px; }
+#btn-left, #btn-right { background: #2478ff; }
+#btn-duck { background: #e67e22; }
+
+/* Action Buttons */
+.btn-act { border-radius: 50%; }
+#btn-jump { background: #2478ff; width: 58px; height: 58px; font-size: 22px; }
+#btn-shoot-fwd { background: #ef3d42; width: 48px; height: 48px; font-size: 17px; }
+#btn-shoot-up { background: #9b59b6; width: 44px; height: 44px; font-size: 16px; }
+.action-row { display: flex; gap: 8px; align-items: center; }
+
+#restart { position: absolute; left: 50%; bottom: 22%; transform: translateX(-50%); display: none; border-radius: 18px; padding: 12px 24px; background: #222; color: #fff; font-size: 16px; font-weight: bold; pointer-events: auto; z-index: 30; border: none; }
+#start-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; pointer-events: auto; z-index: 40; }
+.start-card { background: #fff; padding: 24px; border-radius: 22px; text-align: center; max-width: 290px; width: 85%; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="start-overlay">
+  <div class="start-card">
+    <div style="font-size:38px;margin-bottom:8px">🎮🔫</div>
+    <b style="font-size:20px">กระโดดยิงเหรียญ</b><br><br>
+    <span style="font-size:13px;color:#555">
+      แตะหน้าจอเพื่อเริ่มเล่น<br>
+      หมุนจอนอนเพื่อมุมมองที่ดีที่สุด 🔄
+    </span>
+  </div>
+</div>
+
+<div id="score">🪙 0 &nbsp; ❤️ 3 &nbsp; ด่าน 1</div>
+<div id="msg"></div>
+<button id="restart">เล่นอีกครั้ง 🔄</button>
+
+<div class="pad-group" id="left-pad">
+  <button class="btn btn-d" id="btn-left">◀</button>
+  <button class="btn btn-d" id="btn-duck">▼</button>
+  <button class="btn btn-d" id="btn-right">▶</button>
+</div>
+
+<div class="pad-group" id="right-pad">
+  <button class="btn btn-act" id="btn-shoot-up">👆🔫</button>
+  <div class="action-row">
+    <button class="btn btn-act" id="btn-shoot-fwd">🔫</button>
+    <button class="btn btn-act" id="btn-jump">🦘</button>
+  </div>
+</div>
+
+<script>
+const c=document.getElementById('game'),ctx=c.getContext('2d');
+let W,H,dpr,coins=0,lives=3,over=false,won=false,started=false;
+
+const NORMAL_H = 54, DUCK_H = 30;
+let player={x:60,y:0,w:38,h:NORMAL_H,vy:0,onGround:false,isDucking:false,speed:4.5};
+let inputState = { left: false, right: false, duck: false };
+
+let gameSpeed=4,ground=0,scroll=0,spawn=0,shots=[],coinList=[],blocks=[],birds=[],particles=[];
+
+let audioCtx = null;
+function initAudio(){
+  try {
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+  } catch(e){}
+}
+
+function playSfx(type){
+  if(!audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+    if(type === 'jump'){
+      osc.type = 'sine'; osc.frequency.setValueAtTime(150, now);
+      osc.frequency.exponentialRampToValueAtTime(400, now + 0.1);
+      gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+      osc.start(now); osc.stop(now + 0.1);
+    } else if(type === 'coin'){
+      osc.type = 'triangle'; osc.frequency.setValueAtTime(523, now);
+      osc.frequency.setValueAtTime(659, now + 0.08);
+      gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+      osc.start(now); osc.stop(now + 0.15);
+    } else if(type === 'shoot'){
+      osc.type = 'square'; osc.frequency.setValueAtTime(550, now);
+      osc.frequency.exponentialRampToValueAtTime(100, now + 0.07);
+      gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.07);
+      osc.start(now); osc.stop(now + 0.07);
+    } else if(type === 'hit'){
+      osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, now);
+      osc.frequency.linearRampToValueAtTime(40, now + 0.15);
+      gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+      osc.start(now); osc.stop(now + 0.15);
+    }
+  } catch(e){}
+}
+
+function resize(){
+  dpr = Math.min(devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight;
+  c.width = W * dpr; c.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ground = H - Math.max(75, Math.min(110, H * 0.18));
+  if(player.y > ground - player.h) player.y = ground - player.h;
+}
+addEventListener('resize', resize); resize();
+
+function startGame(){
+  initAudio();
+  if(!started){
+    started = true;
+    document.getElementById('start-overlay').style.display = 'none';
+  }
+}
+
+function reset(){
+  coins=0; lives=3; over=false; won=false; started=true; scroll=0; spawn=0;
+  shots=[]; coinList=[]; blocks=[]; birds=[]; particles=[];
+  player.x=60; player.h=NORMAL_H; player.y=ground-player.h; player.vy=0; player.onGround=true; player.isDucking=false;
+  document.getElementById('restart').style.display='none';
+  document.getElementById('msg').style.display='none';
+  document.getElementById('start-overlay').style.display='none';
+}
+
+function jump(){
+  startGame();
+  if(!over && !won && player.onGround && !player.isDucking){
+    player.vy = -13;
+    player.onGround = false;
+    playSfx('jump');
+  }
+}
+
+function shoot(direction = 'fwd'){
+  startGame();
+  if(over || won) return;
+  if(direction === 'up'){
+    shots.push({x: player.x + player.w / 2, y: player.y, vx: 0, vy: -11});
+  } else {
+    let gunY = player.isDucking ? player.y + 10 : player.y + 22;
+    shots.push({x: player.x + player.w, y: gunY, vx: 10, vy: 0});
+  }
+  playSfx('shoot');
+}
+
+function addBurst(x,y,color,count=5){
+  for(let i=0;i<count;i++){
+    particles.push({x,y,vx:(Math.random()-0.5)*5,vy:(Math.random()-0.5)*5,life:1,color});
+  }
+}
+
+function bindTouchBtn(id, onPress, onRelease){
+  const btn = document.getElementById(id);
+  const start = (e)=>{ e.preventDefault(); onPress(); };
+  const end = (e)=>{ e.preventDefault(); if(onRelease) onRelease(); };
+  btn.addEventListener('pointerdown', start);
+  btn.addEventListener('pointerup', end);
+  btn.addEventListener('pointercancel', end);
+  btn.addEventListener('pointerleave', end);
+}
+
+bindTouchBtn('btn-left', ()=>{ inputState.left = true; }, ()=>{ inputState.left = false; });
+bindTouchBtn('btn-right', ()=>{ inputState.right = true; }, ()=>{ inputState.right = false; });
+bindTouchBtn('btn-duck', ()=>{ inputState.duck = true; }, ()=>{ inputState.duck = false; });
+bindTouchBtn('btn-jump', jump);
+bindTouchBtn('btn-shoot-fwd', ()=>shoot('fwd'));
+bindTouchBtn('btn-shoot-up', ()=>shoot('up'));
+
+document.getElementById('start-overlay').addEventListener('pointerdown', startGame);
+document.getElementById('restart').addEventListener('click', reset);
+
+function rectHit(a,b){
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function update(){
+  if(!started || over || won) return;
+  scroll += gameSpeed; spawn++;
+
+  if(spawn % 75 === 0) coinList.push({x:W+30, y:ground-70-Math.random()*90, r:11});
+  if(spawn % 140 === 0) blocks.push({x:W+30, y:ground-35, w:30+Math.random()*20, h:35});
+  if(spawn % 170 === 0) birds.push({x:W+30, y:ground-58, w:30, h:22, wing:0});
+
+  if(inputState.left) player.x -= player.speed;
+  if(inputState.right) player.x += player.speed;
+  player.x = Math.max(8, Math.min(W - player.w - 8, player.x));
+
+  if(inputState.duck && player.onGround){
+    if(!player.isDucking){
+      player.isDucking = true; player.h = DUCK_H; player.y = ground - DUCK_H;
+    }
+  } else if(player.isDucking){
+    player.isDucking = false; player.h = NORMAL_H; player.y = ground - NORMAL_H;
+  }
+
+  player.vy += 0.65;
+  player.y += player.vy;
+  if(player.y >= ground - player.h){
+    player.y = ground - player.h; player.vy = 0; player.onGround = true;
+  }
+
+  shots.forEach(s=>{ s.x += s.vx; s.y += s.vy; });
+  shots = shots.filter(s=>s.x < W+20 && s.y > -20);
+
+  coinList.forEach(o=>o.x-=gameSpeed);
+  blocks.forEach(o=>o.x-=gameSpeed);
+  birds.forEach(b=>{ b.x -= (gameSpeed + 1); b.wing += 0.2; });
+
+  particles.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.life-=0.06; });
+  particles=particles.filter(p=>p.life>0);
+
+  let pBox = {x: player.x + 4, y: player.y + 2, w: player.w - 8, h: player.h - 2};
+
+  for(let i=coinList.length-1; i>=0; i--){
+    let o = coinList[i], hit = false;
+    for(let j=shots.length-1; j>=0; j--){
+      if(Math.hypot(shots[j].x-o.x, shots[j].y-o.y) < 16){
+        hit = true; shots.splice(j,1); break;
+      }
+    }
+    if(hit || rectHit(pBox, {x: o.x - o.r, y: o.y - o.r, w: o.r * 2, h: o.r * 2})){
+      coins++; playSfx('coin'); addBurst(o.x, o.y, '#ffd42a');
+      coinList.splice(i,1);
+    }
+  }
+
+  for(let i=blocks.length-1; i>=0; i--){
+    let b = blocks[i], shotHit = false;
+    for(let j=shots.length-1; j>=0; j--){
+      if(rectHit({x: shots[j].x-4, y: shots[j].y-4, w: 8, h: 8}, b)){
+        shotHit = true; shots.splice(j,1); break;
+      }
+    }
+    if(shotHit){
+      addBurst(b.x+b.w/2, b.y+b.h/2, '#8d4b2e', 6); playSfx('hit'); blocks.splice(i,1);
+    } else if(rectHit(pBox, b)){
+      addBurst(b.x+b.w/2, b.y+b.h/2, '#8d4b2e'); blocks.splice(i,1);
+      lives--; playSfx('hit'); if(lives <= 0) gameOver();
+    }
+  }
+
+  for(let i=birds.length-1; i>=0; i--){
+    let bird = birds[i], shotHit = false;
+    for(let j=shots.length-1; j>=0; j--){
+      if(rectHit({x: shots[j].x-4, y: shots[j].y-4, w: 8, h: 8}, bird)){
+        shotHit = true; shots.splice(j,1); break;
+      }
+    }
+    if(shotHit){
+      addBurst(bird.x+bird.w/2, bird.y+bird.h/2, '#222', 6); playSfx('hit'); birds.splice(i,1);
+    } else if(rectHit(pBox, bird)){
+      addBurst(bird.x+bird.w/2, bird.y+bird.h/2, '#ef3d42'); birds.splice(i,1);
+      lives--; playSfx('hit'); if(lives <= 0) gameOver();
+    }
+  }
+
+  coinList = coinList.filter(o=>o.x>-30);
+  blocks = blocks.filter(o=>o.x>-50);
+  birds = birds.filter(b=>b.x>-40);
+
+  if(coins >= 12){
+    won = true;
+    showMsg('🎉 ผ่านด่าน 1!<br><small>เก็บเหรียญครบ 12 เหรียญแล้ว</small>');
+    document.getElementById('restart').style.display = 'block';
+  }
+
+  document.getElementById('score').textContent = `🪙 ${coins}   ❤️ ${lives}   ด่าน 1`;
+}
+
+function gameOver(){
+  over = true;
+  showMsg('เกมจบ 😵<br><small>โดนสิ่งกีดขวางหรืออีกาชน!</small>');
+  document.getElementById('restart').style.display = 'block';
+}
+
+function showMsg(t){
+  let m = document.getElementById('msg');
+  m.innerHTML = t; m.style.display = 'block';
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  
+  let g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#50c4ff'); g.addColorStop(1,'#e4f7ff');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+
+  ctx.fillStyle = '#ffffffbb';
+  for(let x = -(scroll * 0.25 % 200) - 40; x < W; x += 200){
+    ctx.beginPath();
+    ctx.arc(x, 60, 18, 0, 7); ctx.arc(x + 22, 54, 24, 0, 7); ctx.arc(x + 50, 62, 16, 0, 7);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = '#4CAF50'; ctx.fillRect(0, ground, W, H - ground);
+  ctx.fillStyle = '#795548'; ctx.fillRect(0, ground + 8, W, H - ground - 8);
+
+  blocks.forEach(b=>{
+    ctx.fillStyle = '#8d4b2e'; ctx.fillRect(b.x, b.y, b.w, b.h);
+  });
+
+  birds.forEach(b=>{
+    let wingY = Math.sin(b.wing) * 6;
+    ctx.fillStyle = '#222';
+    ctx.beginPath(); ctx.ellipse(b.x + 15, b.y + 11, 11, 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(b.x + 5, b.y + 8, 5, 0, Math.PI * 2); ctx.fill();
+  });
+
+  coinList.forEach(o=>{
+    ctx.fillStyle = '#ffd42a'; ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff2a0'; ctx.font = 'bold 11px sans-serif'; ctx.fillText('$', o.x - 3, o.y + 3.5);
+  });
+
+  shots.forEach(s=>{
+    ctx.fillStyle = '#ffec40'; ctx.beginPath(); ctx.arc(s.x, s.y, 4, 0, 7); ctx.fill();
+  });
+
+  particles.forEach(p=>{
+    ctx.fillStyle = p.color; ctx.globalAlpha = p.life;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 2.5, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+
+  if(player.isDucking){
+    ctx.fillStyle = '#1d3b72'; ctx.fillRect(player.x + 4, player.y + 8, 30, 22);
+    ctx.fillStyle = '#f2b28b'; ctx.beginPath(); ctx.arc(player.x + 26, player.y + 8, 10, 0, 7); ctx.fill();
+    ctx.fillStyle = '#333'; ctx.fillRect(player.x + 26, player.y + 10, 18, 5);
+  } else {
+    ctx.fillStyle = '#1d3b72'; ctx.fillRect(player.x + 6, player.y + 18, 24, 36);
+    ctx.fillStyle = '#f2b28b'; ctx.beginPath(); ctx.arc(player.x + 18, player.y + 10, 12, 0, 7); ctx.fill();
+    ctx.fillStyle = '#333'; ctx.fillRect(player.x + 24, player.y + 22, 20, 6);
+  }
+}
+
+function loop(){
+  update(); draw(); requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
