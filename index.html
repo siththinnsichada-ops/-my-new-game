@@ -8,40 +8,70 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Press Start 2P', 'Kanit', monospace, sans-serif; touch-action: none; }
+  html, body { 
+    width: 100%; 
+    height: 100%; 
+    overflow: hidden; 
+    background: #000; 
+    font-family: 'Press Start 2P', 'Kanit', monospace, sans-serif; 
+    touch-action: none;
+    position: fixed;
+  }
   
   #game-container {
     width: 100vw;
-    height: 100vh;
-    position: relative;
+    height: 100dvh;
+    position: fixed;
+    top: 0;
+    left: 0;
     overflow: hidden;
-  }
-  
-  @media screen and (orientation: portrait) {
-    #game-container {
-      width: 100vh !important;
-      height: 100vw !important;
-      transform: rotate(90deg);
-      transform-origin: top left;
-      position: absolute;
-      top: 0;
-      left: 100vw;
-    }
   }
 
   #canvas-container { width: 100%; height: 100%; display: block; }
   
-  /* HUD UI ภาษาไทย */
+  /* หน้าจอแจ้งเตือนบังคับหมุนจอกลับเป็นแนวนอน */
+  #rotate-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100dvh;
+    background: #0d0d11;
+    color: #fff;
+    z-index: 9999;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+  }
+  #rotate-overlay .phone-icon {
+    font-size: 60px;
+    margin-bottom: 20px;
+    animation: rotatePhone 1.5s infinite ease-in-out;
+  }
+  #rotate-overlay .rotate-text {
+    font-family: 'Kanit', sans-serif;
+    font-size: 20px;
+    font-weight: 800;
+    color: #ffea00;
+  }
+
+  @keyframes rotatePhone {
+    0% { transform: rotate(0deg); }
+    50% { transform: rotate(-90deg); }
+    100% { transform: rotate(-90deg); }
+  }
+
+  /* HUD UI */
   #score {
     position: absolute;
     top: max(12px, env(safe-area-inset-top));
-    left: 14px;
+    left: max(12px, env(safe-area-inset-left));
     background: rgba(0, 0, 0, 0.75);
     border: 3px solid #fff;
     padding: 8px 14px;
     border-radius: 6px;
     color: #fff;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 800;
     z-index: 10;
     box-shadow: 3px 3px 0px #000;
@@ -50,10 +80,10 @@
     align-items: center;
     line-height: 1.5;
   }
-  #fuel-bar-bg { width: 70px; height: 10px; background: #333; border: 2px solid #fff; display: inline-block; vertical-align: middle; }
+  #fuel-bar-bg { width: 60px; height: 10px; background: #333; border: 2px solid #fff; display: inline-block; vertical-align: middle; }
   #fuel-bar-fill { width: 100%; height: 100%; background: #e74c3c; transition: width 0.1s; }
 
-  /* OVERLAY สไตล์เรโทร (Start Menu & Game Over) */
+  /* OVERLAY สไตล์เรโทร */
   .overlay-screen {
     position: absolute;
     top: 0; left: 0; width: 100%; height: 100%;
@@ -64,38 +94,38 @@
     align-items: center;
     z-index: 100;
     box-shadow: inset 0 0 80px rgba(255, 0, 0, 0.3);
+    padding: 20px;
   }
 
-  /* ป๊อบอัพผู้สร้างเกม */
   .dev-card {
     background: #111;
     border: 3px solid #ffea00;
     border-radius: 10px;
-    padding: 12px 24px;
-    margin-bottom: 24px;
+    padding: 10px 20px;
+    margin-bottom: 20px;
     text-align: center;
     box-shadow: 0 0 15px rgba(255, 234, 0, 0.4);
   }
-  .dev-title { font-family: 'Kanit', sans-serif; font-size: 13px; color: #aaa; margin-bottom: 4px; }
-  .dev-name { font-family: 'Kanit', sans-serif; font-size: 22px; font-weight: 900; color: #ffea00; letter-spacing: 1px; }
+  .dev-title { font-family: 'Kanit', sans-serif; font-size: 12px; color: #aaa; margin-bottom: 2px; }
+  .dev-name { font-family: 'Kanit', sans-serif; font-size: 20px; font-weight: 900; color: #ffea00; letter-spacing: 1px; }
 
   .retro-title {
-    font-size: 28px;
+    font-size: 24px;
     font-weight: 900;
     color: #ff2222;
-    text-shadow: 4px 4px #000, -2px -2px #880000;
+    text-shadow: 3px 3px #000, -2px -2px #880000;
     animation: retroBlink 0.6s infinite alternate;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
     text-align: center;
     letter-spacing: 1px;
   }
   .retro-sub {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 800;
     color: #ffea00;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
     text-align: center;
-    line-height: 1.8;
+    line-height: 1.6;
     text-shadow: 2px 2px #000;
   }
   
@@ -104,9 +134,9 @@
     font-weight: 900;
     background: #27ae60;
     color: #fff;
-    border: 4px solid #fff;
-    padding: 12px 32px;
-    font-size: 20px;
+    border: 3px solid #fff;
+    padding: 10px 28px;
+    font-size: 18px;
     cursor: pointer;
     box-shadow: 4px 4px 0px #000;
     outline: none;
@@ -126,13 +156,20 @@
     100% { transform: scale(1.06); }
   }
 
-  .pad-group { position: absolute; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 15; display: flex; gap: 10px; align-items: flex-end; }
+  .pad-group { 
+    position: absolute; 
+    bottom: max(16px, env(safe-area-inset-bottom)); 
+    z-index: 15; 
+    display: flex; 
+    gap: 10px; 
+    align-items: flex-end; 
+  }
   #left-pad { left: max(16px, env(safe-area-inset-left)); }
   #right-pad { right: max(16px, env(safe-area-inset-right)); flex-direction: column; align-items: flex-end; gap: 10px; }
   
   #joystick-base {
-    width: 110px;
-    height: 110px;
+    width: 96px;
+    height: 96px;
     background: rgba(0, 0, 0, 0.5);
     border: 3px solid #fff;
     border-radius: 50%;
@@ -141,8 +178,8 @@
     box-shadow: 3px 3px 0px #000;
   }
   #joystick-stick {
-    width: 46px;
-    height: 46px;
+    width: 40px;
+    height: 40px;
     background: #2478ff;
     border: 3px solid #fff;
     border-radius: 50%;
@@ -157,13 +194,19 @@
   .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0px #000; }
   
   .btn-act { border-radius: 50%; }
-  #btn-duck { background: #e67e22; width: 50px; height: 50px; font-size: 18px; }
-  #btn-jump { background: #2478ff; width: 62px; height: 62px; font-size: 22px; }
-  #btn-shoot-fwd { background: #ef3d42; width: 58px; height: 58px; font-size: 20px; }
-  .action-row { display: flex; gap: 12px; align-items: center; }
+  #btn-duck { background: #e67e22; width: 48px; height: 48px; font-size: 16px; }
+  #btn-jump { background: #2478ff; width: 58px; height: 58px; font-size: 20px; }
+  #btn-shoot-fwd { background: #ef3d42; width: 54px; height: 54px; font-size: 18px; }
+  .action-row { display: flex; gap: 10px; align-items: center; }
 </style>
 </head>
 <body>
+
+<!-- หน้าจอแจ้งเตือนให้หมุนเป็นแนวนอน -->
+<div id="rotate-overlay">
+  <div class="phone-icon">📱</div>
+  <div class="rotate-text">กรุณาหมุนโทรศัพท์เป็นแนวนอน<br>เพื่อเข้าเล่นเกม</div>
+</div>
 
 <div id="game-container">
   <div id="canvas-container"></div>
@@ -173,7 +216,6 @@
     <span id="fuel-ui" style="display:none;">⛽ <div id="fuel-bar-bg"><div id="fuel-bar-fill"></div></div></span>
   </div>
 
-  <!-- หน้าจอเมนูเข้าเกม (Start Menu) -->
   <div id="start-overlay" class="overlay-screen">
     <div class="retro-title">90s RETRO ACTION</div>
     
@@ -185,21 +227,18 @@
     <button id="btn-start" class="btn-retro">เริ่มเล่นเกม 🎮</button>
   </div>
 
-  <!-- หน้าจอจบเกมภาษาไทย -->
   <div id="retro-overlay" class="overlay-screen" style="display:none;">
     <div class="retro-title" id="overlay-title">จบเกม</div>
     <div class="retro-sub" id="overlay-desc">คะแนนรวม: 0 เหรียญ<br>ลองใหม่อีกครั้ง!</div>
     <button id="btn-continue" class="btn-retro">เล่นอีกครั้ง 🔄</button>
   </div>
 
-  <!-- Virtual Joystick -->
   <div class="pad-group" id="left-pad">
     <div id="joystick-base">
       <div id="joystick-stick"></div>
     </div>
   </div>
 
-  <!-- ปุ่มการกระทำฝั่งขวา -->
   <div class="pad-group" id="right-pad">
     <div class="action-row" id="stage1-actions">
       <button class="btn btn-act" id="btn-duck">▼</button>
@@ -210,6 +249,40 @@
 </div>
 
 <script>
+// ตรวจสอบและบังคับหมุนเป็นแนวนอน
+function checkOrientation() {
+  const isPortrait = window.innerHeight > window.innerWidth;
+  const rotateOverlay = document.getElementById('rotate-overlay');
+  if (isPortrait) {
+    rotateOverlay.style.display = 'flex';
+  } else {
+    rotateOverlay.style.display = 'none';
+  }
+}
+
+window.addEventListener('resize', () => {
+  checkOrientation();
+  handleResize();
+});
+window.addEventListener('orientationchange', () => {
+  setTimeout(() => {
+    checkOrientation();
+    handleResize();
+  }, 200);
+});
+checkOrientation();
+
+async function requestLandscapeLock() {
+  try {
+    if (document.documentElement.requestFullscreen) {
+      await document.documentElement.requestFullscreen().catch(() => {});
+    }
+    if (screen.orientation && screen.orientation.lock) {
+      await screen.orientation.lock('landscape').catch(() => {});
+    }
+  } catch (e) {}
+}
+
 let lastTouchEnd = 0;
 document.addEventListener('touchend', e => {
   const now = Date.now();
@@ -222,12 +295,12 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x5c94fc);
 
 function getGameSize() {
-  let w = window.innerWidth, h = window.innerHeight;
-  return h > w ? { width: h, height: w } : { width: w, height: h };
+  return { width: window.innerWidth, height: window.innerHeight };
 }
 
 const initialSize = getGameSize();
 const camera = new THREE.PerspectiveCamera(40, initialSize.width / initialSize.height, 0.1, 1000);
+
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(initialSize.width, initialSize.height);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -328,7 +401,6 @@ function buildScenery() {
 }
 buildScenery();
 
-// ===== ตัวละครหันข้าง =====
 const playerGroup = new THREE.Group();
 
 const headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), new THREE.MeshStandardMaterial({ color: 0xf2b28b }));
@@ -401,7 +473,6 @@ playerGroup.add(rightLeg);
 
 scene.add(playerGroup);
 
-// ===== รถวิบาก ด่าน 2 จอดรอ =====
 const carGroup = new THREE.Group();
 const carBody = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.1, 1.8), new THREE.MeshStandardMaterial({ color: 0xe74c3c, roughness: 0.3 }));
 carBody.position.y = 0.8;
@@ -444,7 +515,7 @@ let inputDuck = false;
 
 const joyBase = document.getElementById('joystick-base');
 const joyStick = document.getElementById('joystick-stick');
-const maxRadius = 40;
+const maxRadius = 36;
 
 function handleJoystick(evt) {
   evt.preventDefault();
@@ -453,17 +524,9 @@ function handleJoystick(evt) {
   const centerY = rect.top + rect.height / 2;
   
   let touch = evt.touches ? evt.touches[0] : evt;
-  let screenDx = touch.clientX - centerX;
-  let screenDy = touch.clientY - centerY;
+  let containerDx = touch.clientX - centerX;
+  let containerDy = touch.clientY - centerY;
 
-  let containerDx = screenDx;
-  let containerDy = screenDy;
-
-  if (window.innerHeight > window.innerWidth) {
-    containerDx = screenDy;
-    containerDy = -screenDx;
-  }
-  
   let dist = Math.hypot(containerDx, containerDy);
   if (dist > maxRadius) {
     containerDx = (containerDx / dist) * maxRadius;
@@ -488,9 +551,6 @@ joyBase.addEventListener('pointercancel', resetJoystick);
 
 let coinsList = [], blocksList = [], birdsList = [], fuelList = [], powerUpsList = [], shotsList = [];
 
-// ===================================================
-// ===== ระบบเสียงสังเคราะห์ 8-BIT & BGM ประกอบ =====
-// ===================================================
 let audioCtx = null;
 let titleBgmTimer = null;
 let inGameBgmTimer = null;
@@ -502,12 +562,11 @@ function initAudio(){
   } catch(e){}
 }
 
-// 1. เสียงเพลงรอกดเริ่มเกม (Title BGM)
 function startTitleBGM() {
   stopTitleBGM();
   stopInGameBGM();
   let step = 0;
-  const notes = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63, 440.00, 523.25]; // โน้ตเมนูเรโทร
+  const notes = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63, 440.00, 523.25];
   
   titleBgmTimer = setInterval(() => {
     if(!audioCtx || audioCtx.state !== 'running' || gameStarted) return;
@@ -530,7 +589,6 @@ function stopTitleBGM() {
   if (titleBgmTimer) { clearInterval(titleBgmTimer); titleBgmTimer = null; }
 }
 
-// 2. เสียงเพลงประกอบในเกมเบาๆ ยุค 90s (In-Game BGM)
 function startInGameBGM() {
   stopTitleBGM();
   stopInGameBGM();
@@ -542,26 +600,24 @@ function startInGameBGM() {
     if(!audioCtx || audioCtx.state !== 'running' || over || won || !gameStarted) return;
     const now = audioCtx.currentTime;
 
-    // เสียงเบสคลอเบาๆ
     let oscBass = audioCtx.createOscillator();
     let gainBass = audioCtx.createGain();
     oscBass.type = 'sawtooth';
     oscBass.frequency.setValueAtTime(bassNotes[step % bassNotes.length], now);
-    gainBass.gain.setValueAtTime(0.025, now); // เสียงเบาๆ ไม่กวนเกม
+    gainBass.gain.setValueAtTime(0.025, now);
     gainBass.gain.linearRampToValueAtTime(0.001, now + 0.2);
     oscBass.connect(gainBass);
     gainBass.connect(audioCtx.destination);
     oscBass.start(now);
     oscBass.stop(now + 0.2);
 
-    // เสียงทำนองหลัก 8-Bit
     let note = leadNotes[step % leadNotes.length];
     if(note > 0) {
       let oscLead = audioCtx.createOscillator();
       let gainLead = audioCtx.createGain();
       oscLead.type = 'square';
       oscLead.frequency.setValueAtTime(note, now);
-      gainLead.gain.setValueAtTime(0.018, now); // ปรับระดับเสียงให้เบากำลังดี
+      gainLead.gain.setValueAtTime(0.018, now);
       gainLead.gain.linearRampToValueAtTime(0.001, now + 0.14);
       oscLead.connect(gainLead);
       gainLead.connect(audioCtx.destination);
@@ -577,7 +633,6 @@ function stopInGameBGM() {
   if (inGameBgmTimer) { clearInterval(inGameBgmTimer); inGameBgmTimer = null; }
 }
 
-// 3. เสียง Nokia 3310 ตอนจบเกม
 function playNokiaTune() {
   stopInGameBGM();
   if (!audioCtx) return;
@@ -652,7 +707,6 @@ function playSfx(type){
   } catch(e){}
 }
 
-// เริ่มเล่นเสียงเพลงหน้าเมนูทันทีเมื่อผู้ใช้แตะหน้าจอ
 document.body.addEventListener('pointerdown', () => {
   initAudio();
   if(!gameStarted && !titleBgmTimer) {
@@ -720,9 +774,10 @@ function buildLevel(){
 
 function startGame() {
   initAudio();
+  requestLandscapeLock();
   gameStarted = true;
   document.getElementById('start-overlay').style.display = 'none';
-  startInGameBGM(); // สลับไปเล่นเพลงประกอบในเกม
+  startInGameBGM();
   reset();
 }
 
@@ -831,7 +886,7 @@ function triggerPlayerDeath(reason) {
 
 function showRetroGameOver(titleText, descText) {
   over = true;
-  playNokiaTune(); // เล่นเสียง Nokia 3310
+  playNokiaTune();
   const overlay = document.getElementById('retro-overlay');
   document.getElementById('overlay-title').innerText = titleText;
   document.getElementById('overlay-desc').innerHTML = descText;
@@ -1137,12 +1192,16 @@ function animate(){
 }
 animate();
 
-window.addEventListener('resize', ()=>{
-  let size = getGameSize();
-  camera.aspect = size.width / size.height;
+function handleResize() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  
+  camera.aspect = w / h;
+  camera.fov = 40;
   camera.updateProjectionMatrix();
-  renderer.setSize(size.width, size.height);
-});
+  
+  renderer.setSize(w, h);
+}
 </script>
 </body>
 </html>
