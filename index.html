@@ -1,0 +1,1148 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>90s Retro Side-Scroller - สิทธินน สีชาดา เกมส์</title>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@600;800;900&family=Press+Start+2P&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Press Start 2P', 'Kanit', monospace, sans-serif; touch-action: none; }
+  
+  #game-container {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  @media screen and (orientation: portrait) {
+    #game-container {
+      width: 100vh !important;
+      height: 100vw !important;
+      transform: rotate(90deg);
+      transform-origin: top left;
+      position: absolute;
+      top: 0;
+      left: 100vw;
+    }
+  }
+
+  #canvas-container { width: 100%; height: 100%; display: block; }
+  
+  /* HUD UI ภาษาไทย */
+  #score {
+    position: absolute;
+    top: max(12px, env(safe-area-inset-top));
+    left: 14px;
+    background: rgba(0, 0, 0, 0.75);
+    border: 3px solid #fff;
+    padding: 8px 14px;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    z-index: 10;
+    box-shadow: 3px 3px 0px #000;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    line-height: 1.5;
+  }
+  #fuel-bar-bg { width: 70px; height: 10px; background: #333; border: 2px solid #fff; display: inline-block; vertical-align: middle; }
+  #fuel-bar-fill { width: 100%; height: 100%; background: #e74c3c; transition: width 0.1s; }
+
+  /* OVERLAY สไตล์เรโทร (Start Menu & Game Over) */
+  .overlay-screen {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.92);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    box-shadow: inset 0 0 80px rgba(255, 0, 0, 0.3);
+  }
+
+  /* ป๊อบอัพผู้สร้างเกม */
+  .dev-card {
+    background: #111;
+    border: 3px solid #ffea00;
+    border-radius: 10px;
+    padding: 12px 24px;
+    margin-bottom: 24px;
+    text-align: center;
+    box-shadow: 0 0 15px rgba(255, 234, 0, 0.4);
+  }
+  .dev-title { font-family: 'Kanit', sans-serif; font-size: 13px; color: #aaa; margin-bottom: 4px; }
+  .dev-name { font-family: 'Kanit', sans-serif; font-size: 22px; font-weight: 900; color: #ffea00; letter-spacing: 1px; }
+
+  .retro-title {
+    font-size: 28px;
+    font-weight: 900;
+    color: #ff2222;
+    text-shadow: 4px 4px #000, -2px -2px #880000;
+    animation: retroBlink 0.6s infinite alternate;
+    margin-bottom: 16px;
+    text-align: center;
+    letter-spacing: 1px;
+  }
+  .retro-sub {
+    font-size: 15px;
+    font-weight: 800;
+    color: #ffea00;
+    margin-bottom: 24px;
+    text-align: center;
+    line-height: 1.8;
+    text-shadow: 2px 2px #000;
+  }
+  
+  .btn-retro {
+    font-family: 'Kanit', sans-serif;
+    font-weight: 900;
+    background: #27ae60;
+    color: #fff;
+    border: 4px solid #fff;
+    padding: 12px 32px;
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: 4px 4px 0px #000;
+    outline: none;
+    border-radius: 8px;
+    animation: retroPulse 1s infinite alternate;
+  }
+  .btn-retro:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0px #000; }
+
+  #btn-continue { background: #e74c3c; }
+
+  @keyframes retroBlink {
+    0% { opacity: 1; }
+    100% { opacity: 0.3; }
+  }
+  @keyframes retroPulse {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.06); }
+  }
+
+  .pad-group { position: absolute; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 15; display: flex; gap: 10px; align-items: flex-end; }
+  #left-pad { left: max(16px, env(safe-area-inset-left)); }
+  #right-pad { right: max(16px, env(safe-area-inset-right)); flex-direction: column; align-items: flex-end; gap: 10px; }
+  
+  #joystick-base {
+    width: 110px;
+    height: 110px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 3px solid #fff;
+    border-radius: 50%;
+    position: relative;
+    touch-action: none;
+    box-shadow: 3px 3px 0px #000;
+  }
+  #joystick-stick {
+    width: 46px;
+    height: 46px;
+    background: #2478ff;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  .btn { border: 3px solid #fff; font-weight: 900; color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 3px 3px 0px #000; outline: none; touch-action: manipulation; }
+  .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0px #000; }
+  
+  .btn-act { border-radius: 50%; }
+  #btn-duck { background: #e67e22; width: 50px; height: 50px; font-size: 18px; }
+  #btn-jump { background: #2478ff; width: 62px; height: 62px; font-size: 22px; }
+  #btn-shoot-fwd { background: #ef3d42; width: 58px; height: 58px; font-size: 20px; }
+  .action-row { display: flex; gap: 12px; align-items: center; }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <div id="canvas-container"></div>
+
+  <div id="score">
+    <span id="txt-info">🪙 0 &nbsp; ❤️ 3 &nbsp; ด่าน 1</span>
+    <span id="fuel-ui" style="display:none;">⛽ <div id="fuel-bar-bg"><div id="fuel-bar-fill"></div></div></span>
+  </div>
+
+  <!-- หน้าจอเมนูเข้าเกม (Start Menu) -->
+  <div id="start-overlay" class="overlay-screen">
+    <div class="retro-title">90s RETRO ACTION</div>
+    
+    <div class="dev-card">
+      <div class="dev-title">ผู้สร้างเกม</div>
+      <div class="dev-name">สิทธินน สีชาดา เกมส์</div>
+    </div>
+
+    <button id="btn-start" class="btn-retro">เริ่มเล่นเกม 🎮</button>
+  </div>
+
+  <!-- หน้าจอจบเกมภาษาไทย -->
+  <div id="retro-overlay" class="overlay-screen" style="display:none;">
+    <div class="retro-title" id="overlay-title">จบเกม</div>
+    <div class="retro-sub" id="overlay-desc">คะแนนรวม: 0 เหรียญ<br>ลองใหม่อีกครั้ง!</div>
+    <button id="btn-continue" class="btn-retro">เล่นอีกครั้ง 🔄</button>
+  </div>
+
+  <!-- Virtual Joystick -->
+  <div class="pad-group" id="left-pad">
+    <div id="joystick-base">
+      <div id="joystick-stick"></div>
+    </div>
+  </div>
+
+  <!-- ปุ่มการกระทำฝั่งขวา -->
+  <div class="pad-group" id="right-pad">
+    <div class="action-row" id="stage1-actions">
+      <button class="btn btn-act" id="btn-duck">▼</button>
+      <button class="btn btn-act" id="btn-shoot-fwd">🔫</button>
+      <button class="btn btn-act" id="btn-jump">🦘</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let lastTouchEnd = 0;
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - lastTouchEnd <= 300) e.preventDefault();
+  lastTouchEnd = now;
+}, { passive: false });
+
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x5c94fc);
+
+function getGameSize() {
+  let w = window.innerWidth, h = window.innerHeight;
+  return h > w ? { width: h, height: w } : { width: w, height: h };
+}
+
+const initialSize = getGameSize();
+const camera = new THREE.PerspectiveCamera(40, initialSize.width / initialSize.height, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(initialSize.width, initialSize.height);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+container.appendChild(renderer.domElement);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.95);
+scene.add(ambientLight);
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+dirLight.position.set(10, 30, 20);
+dirLight.castShadow = true;
+scene.add(dirLight);
+
+const STAGE1_END = 200;
+const STAGE2_END = 500;
+
+function getTerrainHeight(x) {
+  if (x < STAGE1_END) return 0;
+  let relX = x - STAGE1_END;
+  return Math.sin(relX * 0.08) * 3.0 + Math.cos(relX * 0.04) * 2.0 + Math.sin(relX * 0.18) * 1.0;
+}
+
+function createTerrainMesh() {
+  const length = STAGE2_END + 100;
+  const height = 24;
+  const segmentsX = 400;
+  
+  const geo = new THREE.PlaneGeometry(length, height, segmentsX, 1);
+  const pos = geo.attributes.position;
+
+  for (let i = 0; i < pos.count; i++) {
+    let x = pos.getX(i) + length / 2 - 20;
+    pos.setX(i, x);
+    if (pos.getY(i) > 0) {
+      pos.setY(i, getTerrainHeight(x));
+    } else {
+      pos.setY(i, -14);
+    }
+  }
+  geo.computeVertexNormals();
+
+  const count = pos.count;
+  const colors = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    let x = pos.getX(i);
+    let isTop = pos.getY(i) > -8;
+    let stripePattern = Math.floor(x / 2) % 2 === 0;
+
+    if (isTop) {
+      if (stripePattern) {
+        colors[i * 3] = 0.29; colors[i * 3 + 1] = 0.68; colors[i * 3 + 2] = 0.31;
+      } else {
+        colors[i * 3] = 0.24; colors[i * 3 + 1] = 0.60; colors[i * 3 + 2] = 0.26;
+      }
+    } else {
+      colors[i * 3] = 0.52; colors[i * 3 + 1] = 0.35; colors[i * 3 + 2] = 0.22;
+    }
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide });
+  const terrainMesh = new THREE.Mesh(geo, mat);
+  terrainMesh.position.set(0, 0, 0);
+  scene.add(terrainMesh);
+}
+createTerrainMesh();
+
+function buildScenery() {
+  const cloudGeo = new THREE.BoxGeometry(2.0, 1.0, 0.5);
+  const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  for (let x = -30; x < STAGE2_END + 80; x += 14 + Math.random() * 8) {
+    let cloud = new THREE.Mesh(cloudGeo, cloudMat);
+    cloud.position.set(x, 6.5 + Math.random() * 3.5, -4.5);
+    scene.add(cloud);
+  }
+
+  const trunkGeo = new THREE.BoxGeometry(0.3, 1.2, 0.3);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5c4033 });
+  const leavesGeo = new THREE.BoxGeometry(1.2, 1.6, 1.2);
+  const leavesMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32 });
+
+  for (let x = -15; x < STAGE2_END + 50; x += 6 + Math.random() * 4) {
+    let tree = new THREE.Group();
+    let trunk = new THREE.Mesh(trunkGeo, trunkMat); trunk.position.y = 0.6;
+    let leaves = new THREE.Mesh(leavesGeo, leavesMat); leaves.position.y = 1.6;
+    tree.add(trunk); tree.add(leaves);
+    tree.position.set(x, getTerrainHeight(x), -1.8);
+    scene.add(tree);
+  }
+
+  const postGeo = new THREE.BoxGeometry(0.15, 0.9, 0.15);
+  const postMat = new THREE.MeshStandardMaterial({ color: 0xe67e22 });
+  for (let x = -10; x < STAGE2_END + 50; x += 4) {
+    let post = new THREE.Mesh(postGeo, postMat);
+    post.position.set(x, getTerrainHeight(x) + 0.45, -0.6);
+    scene.add(post);
+  }
+}
+buildScenery();
+
+// ===== ตัวละครหันข้าง =====
+const playerGroup = new THREE.Group();
+
+const headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), new THREE.MeshStandardMaterial({ color: 0xf2b28b }));
+headMesh.position.y = 1.45;
+playerGroup.add(headMesh);
+
+const hairMesh = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.18, 0.65), new THREE.MeshStandardMaterial({ color: 0xef3d42 }));
+hairMesh.position.set(0, 1.68, 0);
+playerGroup.add(hairMesh);
+
+const bandanaTail = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.1), new THREE.MeshStandardMaterial({ color: 0xef3d42 }));
+bandanaTail.position.set(-0.4, 1.66, 0.2);
+playerGroup.add(bandanaTail);
+
+const eyeMesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 0.08), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+eyeMesh.position.set(0.2, 1.5, 0.28);
+playerGroup.add(eyeMesh);
+
+const eyeWhite = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.02), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+eyeWhite.position.set(0.22, 1.52, 0.31);
+playerGroup.add(eyeWhite);
+
+const eyebrowMesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.05, 0.08), new THREE.MeshBasicMaterial({ color: 0x222222 }));
+eyebrowMesh.position.set(0.18, 1.58, 0.29);
+eyebrowMesh.rotation.z = -0.15;
+playerGroup.add(eyebrowMesh);
+
+const noseMesh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.12), new THREE.MeshStandardMaterial({ color: 0xe09870 }));
+noseMesh.position.set(0.33, 1.44, 0.22);
+playerGroup.add(noseMesh);
+
+const mouthMesh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.08), new THREE.MeshBasicMaterial({ color: 0x8b0000 }));
+mouthMesh.position.set(0.22, 1.34, 0.25);
+playerGroup.add(mouthMesh);
+
+const earMesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 0.12), new THREE.MeshStandardMaterial({ color: 0xe09870 }));
+earMesh.position.set(-0.1, 1.45, 0.28);
+playerGroup.add(earMesh);
+
+const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, 0.5), new THREE.MeshStandardMaterial({ color: 0x1d3b72 }));
+bodyMesh.position.y = 0.85;
+playerGroup.add(bodyMesh);
+
+const armGeo = new THREE.BoxGeometry(0.2, 0.55, 0.2);
+const armMat = new THREE.MeshStandardMaterial({ color: 0xf2b28b });
+
+const leftArm = new THREE.Mesh(armGeo, armMat);
+leftArm.position.set(-0.25, 0.85, -0.2);
+playerGroup.add(leftArm);
+
+const rightArm = new THREE.Mesh(armGeo, armMat);
+rightArm.position.set(0.25, 0.85, 0.25);
+rightArm.rotation.x = -Math.PI / 3;
+playerGroup.add(rightArm);
+
+const gunMesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.22, 0.55), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+gunMesh.position.set(0.35, 0.85, 0.35);
+playerGroup.add(gunMesh);
+
+const legGeo = new THREE.BoxGeometry(0.24, 0.6, 0.24);
+const legMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+
+const leftLeg = new THREE.Mesh(legGeo, legMat);
+leftLeg.position.set(-0.15, 0.3, -0.12);
+playerGroup.add(leftLeg);
+
+const rightLeg = new THREE.Mesh(legGeo, legMat);
+rightLeg.position.set(0.15, 0.3, 0.12);
+playerGroup.add(rightLeg);
+
+scene.add(playerGroup);
+
+// ===== รถวิบาก ด่าน 2 จอดรอ =====
+const carGroup = new THREE.Group();
+const carBody = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.1, 1.8), new THREE.MeshStandardMaterial({ color: 0xe74c3c, roughness: 0.3 }));
+carBody.position.y = 0.8;
+carGroup.add(carBody);
+
+const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.8, 1.5), new THREE.MeshStandardMaterial({ color: 0x333333, transparent: true, opacity: 0.7 }));
+cabin.position.set(-0.2, 1.6, 0);
+carGroup.add(cabin);
+
+const wheelGeo = new THREE.CylinderGeometry(0.55, 0.55, 0.45, 18);
+const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+const wheels = [];
+[[-1.0, 0.45, 0.95], [1.0, 0.45, 0.95], [-1.0, 0.45, -0.95], [1.0, 0.45, -0.95]].forEach(pos => {
+  let w = new THREE.Mesh(wheelGeo, wheelMat);
+  w.rotation.z = Math.PI / 2;
+  w.position.set(...pos);
+  carGroup.add(w);
+  wheels.push(w);
+});
+
+carGroup.position.set(STAGE1_END, getTerrainHeight(STAGE1_END), 0);
+carGroup.visible = true;
+scene.add(carGroup);
+
+let currentStage = 1;
+let inCar = false;
+let coins = 0, lives = 3, over = false, won = false, gameStarted = false;
+let fuel = 100;
+let lastCarX = STAGE1_END;
+let playerHasSpreadGun = false;
+
+let isDying = false;
+let deathTimer = 0;
+
+const player = { x: 0, y: 0, vy: 0, isDucking: false, onGround: true, speed: 0.16, dir: 1 };
+const car = { x: STAGE1_END, y: getTerrainHeight(STAGE1_END), vx: 0, vy: 0, angle: 0, vAngle: 0, onGround: true };
+
+let joystickVector = { x: 0, y: 0 };
+let inputDuck = false;
+
+const joyBase = document.getElementById('joystick-base');
+const joyStick = document.getElementById('joystick-stick');
+const maxRadius = 40;
+
+function handleJoystick(evt) {
+  evt.preventDefault();
+  const rect = joyBase.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  
+  let touch = evt.touches ? evt.touches[0] : evt;
+  let screenDx = touch.clientX - centerX;
+  let screenDy = touch.clientY - centerY;
+
+  let containerDx = screenDx;
+  let containerDy = screenDy;
+
+  if (window.innerHeight > window.innerWidth) {
+    containerDx = screenDy;
+    containerDy = -screenDx;
+  }
+  
+  let dist = Math.hypot(containerDx, containerDy);
+  if (dist > maxRadius) {
+    containerDx = (containerDx / dist) * maxRadius;
+    containerDy = (containerDy / dist) * maxRadius;
+  }
+  
+  joyStick.style.transform = `translate(calc(-50% + ${containerDx}px), calc(-50% + ${containerDy}px))`;
+  joystickVector.x = containerDx / maxRadius;
+  joystickVector.y = containerDy / maxRadius;
+}
+
+function resetJoystick() {
+  joyStick.style.transform = 'translate(-50%, -50%)';
+  joystickVector.x = 0;
+  joystickVector.y = 0;
+}
+
+joyBase.addEventListener('pointerdown', (e) => { joyBase.setPointerCapture(e.pointerId); handleJoystick(e); });
+joyBase.addEventListener('pointermove', (e) => { if (e.buttons) handleJoystick(e); });
+joyBase.addEventListener('pointerup', resetJoystick);
+joyBase.addEventListener('pointercancel', resetJoystick);
+
+let coinsList = [], blocksList = [], birdsList = [], fuelList = [], powerUpsList = [], shotsList = [];
+
+// ===================================================
+// ===== ระบบเสียงสังเคราะห์ 8-BIT & BGM ประกอบ =====
+// ===================================================
+let audioCtx = null;
+let titleBgmTimer = null;
+let inGameBgmTimer = null;
+
+function initAudio(){
+  try {
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+  } catch(e){}
+}
+
+// 1. เสียงเพลงรอกดเริ่มเกม (Title BGM)
+function startTitleBGM() {
+  stopTitleBGM();
+  stopInGameBGM();
+  let step = 0;
+  const notes = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63, 440.00, 523.25]; // โน้ตเมนูเรโทร
+  
+  titleBgmTimer = setInterval(() => {
+    if(!audioCtx || audioCtx.state !== 'running' || gameStarted) return;
+    const now = audioCtx.currentTime;
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(notes[step % notes.length], now);
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + 0.18);
+    step++;
+  }, 220);
+}
+
+function stopTitleBGM() {
+  if (titleBgmTimer) { clearInterval(titleBgmTimer); titleBgmTimer = null; }
+}
+
+// 2. เสียงเพลงประกอบในเกมเบาๆ ยุค 90s (In-Game BGM)
+function startInGameBGM() {
+  stopTitleBGM();
+  stopInGameBGM();
+  let step = 0;
+  const bassNotes = [130.81, 130.81, 164.81, 174.61, 196.00, 196.00, 174.61, 164.81]; 
+  const leadNotes = [523.25, 0, 659.25, 523.25, 783.99, 659.25, 523.25, 0];
+
+  inGameBgmTimer = setInterval(() => {
+    if(!audioCtx || audioCtx.state !== 'running' || over || won || !gameStarted) return;
+    const now = audioCtx.currentTime;
+
+    // เสียงเบสคลอเบาๆ
+    let oscBass = audioCtx.createOscillator();
+    let gainBass = audioCtx.createGain();
+    oscBass.type = 'sawtooth';
+    oscBass.frequency.setValueAtTime(bassNotes[step % bassNotes.length], now);
+    gainBass.gain.setValueAtTime(0.025, now); // เสียงเบาๆ ไม่กวนเกม
+    gainBass.gain.linearRampToValueAtTime(0.001, now + 0.2);
+    oscBass.connect(gainBass);
+    gainBass.connect(audioCtx.destination);
+    oscBass.start(now);
+    oscBass.stop(now + 0.2);
+
+    // เสียงทำนองหลัก 8-Bit
+    let note = leadNotes[step % leadNotes.length];
+    if(note > 0) {
+      let oscLead = audioCtx.createOscillator();
+      let gainLead = audioCtx.createGain();
+      oscLead.type = 'square';
+      oscLead.frequency.setValueAtTime(note, now);
+      gainLead.gain.setValueAtTime(0.018, now); // ปรับระดับเสียงให้เบากำลังดี
+      gainLead.gain.linearRampToValueAtTime(0.001, now + 0.14);
+      oscLead.connect(gainLead);
+      gainLead.connect(audioCtx.destination);
+      oscLead.start(now);
+      oscLead.stop(now + 0.14);
+    }
+
+    step++;
+  }, 200);
+}
+
+function stopInGameBGM() {
+  if (inGameBgmTimer) { clearInterval(inGameBgmTimer); inGameBgmTimer = null; }
+}
+
+// 3. เสียง Nokia 3310 ตอนจบเกม
+function playNokiaTune() {
+  stopInGameBGM();
+  if (!audioCtx) return;
+  const notes = [
+    { f: 659.25, d: 0.16 }, { f: 587.33, d: 0.16 }, { f: 369.99, d: 0.32 }, { f: 415.30, d: 0.32 },
+    { f: 554.37, d: 0.16 }, { f: 493.88, d: 0.16 }, { f: 293.66, d: 0.32 }, { f: 329.63, d: 0.32 },
+    { f: 493.88, d: 0.16 }, { f: 440.00, d: 0.16 }, { f: 277.18, d: 0.32 }, { f: 329.63, d: 0.32 },
+    { f: 440.00, d: 0.65 }
+  ];
+
+  let now = audioCtx.currentTime + 0.05;
+  notes.forEach(n => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(n.f, now);
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.linearRampToValueAtTime(0.01, now + n.d - 0.02);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + n.d);
+    now += n.d;
+  });
+}
+
+function playSfx(type){
+  if(!audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+
+    if(type === 'jump'){
+      osc.type = 'square'; osc.frequency.setValueAtTime(150, now);
+      osc.frequency.exponentialRampToValueAtTime(450, now + 0.12);
+      gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+      osc.start(now); osc.stop(now + 0.12);
+    } 
+    else if(type === 'coin'){
+      osc.type = 'square'; osc.frequency.setValueAtTime(587, now);
+      osc.frequency.setValueAtTime(880, now + 0.08);
+      gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.16);
+      osc.start(now); osc.stop(now + 0.16);
+    } 
+    else if(type === 'fuel' || type === 'powerup'){
+      osc.type = 'triangle'; osc.frequency.setValueAtTime(261, now);
+      osc.frequency.exponentialRampToValueAtTime(1046, now + 0.3);
+      gain.gain.setValueAtTime(0.25, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+      osc.start(now); osc.stop(now + 0.3);
+    } 
+    else if(type === 'hit'){
+      osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, now);
+      osc.frequency.linearRampToValueAtTime(60, now + 0.12);
+      gain.gain.setValueAtTime(0.25, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+      osc.start(now); osc.stop(now + 0.12);
+    } 
+    else if(type === 'shoot'){
+      osc.type = 'square'; osc.frequency.setValueAtTime(700, now);
+      osc.frequency.exponentialRampToValueAtTime(120, now + 0.08);
+      gain.gain.setValueAtTime(0.15, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+      osc.start(now); osc.stop(now + 0.08);
+    } 
+    else if(type === 'die'){
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(380, now);
+      osc.frequency.exponentialRampToValueAtTime(30, now + 0.6);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.linearRampToValueAtTime(0.01, now + 0.6);
+      osc.start(now); osc.stop(now + 0.6);
+    }
+  } catch(e){}
+}
+
+// เริ่มเล่นเสียงเพลงหน้าเมนูทันทีเมื่อผู้ใช้แตะหน้าจอ
+document.body.addEventListener('pointerdown', () => {
+  initAudio();
+  if(!gameStarted && !titleBgmTimer) {
+    startTitleBGM();
+  }
+}, { once: true });
+
+function buildLevel(){
+  coinsList.forEach(c => scene.remove(c.mesh));
+  blocksList.forEach(b => scene.remove(b.mesh));
+  birdsList.forEach(b => scene.remove(b.mesh));
+  fuelList.forEach(f => scene.remove(f.mesh));
+  powerUpsList.forEach(p => scene.remove(p.mesh));
+  shotsList.forEach(s => scene.remove(s.mesh));
+  coinsList = []; blocksList = []; birdsList = []; fuelList = []; powerUpsList = []; shotsList = [];
+
+  const coinGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.1, 16);
+  const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.2 });
+
+  const boxGeo = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+  const boxMat = new THREE.MeshStandardMaterial({ color: 0x8d4b2e, roughness: 0.8 });
+
+  const birdGeo = new THREE.ConeGeometry(0.4, 0.9, 8);
+  const birdMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+
+  const fuelGeo = new THREE.CylinderGeometry(0.45, 0.45, 1.1, 14);
+  const fuelMat = new THREE.MeshStandardMaterial({ color: 0xef3d42, roughness: 0.2 });
+
+  for(let x = 12; x < STAGE1_END - 5; x += 7 + Math.random() * 5){
+    let rand = Math.random();
+    if(rand < 0.4){
+      let c = new THREE.Mesh(coinGeo, coinMat);
+      c.rotation.x = Math.PI / 2;
+      c.position.set(x, 1.2 + Math.random() * 1.2, 0);
+      scene.add(c); coinsList.push({ mesh: c, active: true });
+    } else if(rand < 0.75){
+      let b = new THREE.Mesh(boxGeo, boxMat);
+      b.position.set(x, 0.6, 0);
+      scene.add(b); blocksList.push({ mesh: b, active: true, w: 1.2, h: 1.2 });
+    } else {
+      let bd = new THREE.Mesh(birdGeo, birdMat);
+      bd.rotation.z = -Math.PI / 2;
+      bd.position.set(x, 1.2, 0);
+      scene.add(bd); birdsList.push({ mesh: bd, active: true, baseY: 1.2, w: 1.0, h: 1.0 });
+    }
+  }
+
+  for(let x = STAGE1_END + 70; x < STAGE2_END - 20; x += 85){
+    let groundY = getTerrainHeight(x);
+    let f = new THREE.Mesh(fuelGeo, fuelMat);
+    f.position.set(x, groundY + 0.9, 0);
+    scene.add(f); fuelList.push({ mesh: f, active: true });
+  }
+
+  for(let x = STAGE1_END + 15; x < STAGE2_END - 10; x += 12){
+    let groundY = getTerrainHeight(x);
+    if(Math.random() < 0.5){
+      let c = new THREE.Mesh(coinGeo, coinMat);
+      c.rotation.x = Math.PI / 2;
+      c.position.set(x, groundY + 1.4, 0);
+      scene.add(c); coinsList.push({ mesh: c, active: true });
+    }
+  }
+}
+
+function startGame() {
+  initAudio();
+  gameStarted = true;
+  document.getElementById('start-overlay').style.display = 'none';
+  startInGameBGM(); // สลับไปเล่นเพลงประกอบในเกม
+  reset();
+}
+
+function reset(){
+  initAudio();
+  currentStage = 1; inCar = false; coins = 0; lives = 3; fuel = 100; over = false; won = false; playerHasSpreadGun = false;
+  isDying = false; deathTimer = 0;
+  
+  player.x = 0; player.y = 0; player.vy = 0; player.onGround = true; player.isDucking = false; player.dir = 1;
+  playerGroup.rotation.set(0, 0, 0);
+  playerGroup.visible = true;
+  playerGroup.scale.set(1, 1, 1);
+  
+  car.x = STAGE1_END; car.y = getTerrainHeight(STAGE1_END); car.vx = 0; car.vy = 0; car.angle = 0; car.vAngle = 0;
+  lastCarX = STAGE1_END;
+  carGroup.position.set(car.x, car.y, 0);
+  carGroup.rotation.set(0, 0, 0);
+  carGroup.visible = true;
+
+  document.getElementById('fuel-ui').style.display = 'none';
+
+  buildLevel();
+  document.getElementById('retro-overlay').style.display = 'none';
+  startInGameBGM();
+}
+
+function jump(){
+  initAudio();
+  if(!gameStarted || over || won || isDying) return;
+  if(currentStage === 1 || (currentStage === 2 && !inCar)){
+    if(player.onGround){
+      player.vy = 0.23;
+      player.onGround = false;
+      playSfx('jump');
+    }
+  }
+}
+
+function createSingleBullet(vx, vy){
+  const shotMesh = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 10), new THREE.MeshBasicMaterial({ color: 0xffea00 }));
+  let startY = player.y + (player.isDucking ? 0.4 : 0.85);
+  let startX = player.x + (player.dir * 0.7);
+  shotMesh.position.set(startX, startY, 0);
+  scene.add(shotMesh);
+  shotsList.push({ mesh: shotMesh, vx, vy });
+}
+
+function shoot(){
+  initAudio();
+  if(!gameStarted || over || won || isDying) return;
+  if(currentStage === 1 || (currentStage === 2 && !inCar)){
+    let vx = 0, vy = 0;
+    
+    if(joystickVector.y < -0.3 && Math.abs(joystickVector.x) <= 0.25){
+      vx = 0; vy = 0.30;
+    } else if(joystickVector.y < -0.3 && Math.abs(joystickVector.x) > 0.25){
+      vx = player.dir * 0.22; vy = 0.22;
+    } else {
+      vx = player.dir * 0.32; vy = 0;
+    }
+
+    if(playerHasSpreadGun){
+      if(vy > 0 && vx === 0){
+        createSingleBullet(0, 0.30); createSingleBullet(-0.10, 0.28); createSingleBullet(0.10, 0.28);
+      } else if(vy > 0 && vx !== 0){
+        createSingleBullet(vx, vy); createSingleBullet(vx * 1.2, vy * 0.7); createSingleBullet(vx * 0.7, vy * 1.2);
+      } else {
+        createSingleBullet(vx, 0); createSingleBullet(vx * 0.95, 0.12); createSingleBullet(vx * 0.95, -0.12);
+      }
+    } else {
+      createSingleBullet(vx, vy);
+    }
+    playSfx('shoot');
+  }
+}
+
+function bindTouchBtn(id, onPress, onRelease){
+  const btn = document.getElementById(id);
+  if(!btn) return;
+  const start = (e)=>{ e.preventDefault(); initAudio(); onPress(); };
+  const end = (e)=>{ e.preventDefault(); if(onRelease) onRelease(); };
+  btn.addEventListener('pointerdown', start);
+  btn.addEventListener('pointerup', end);
+  btn.addEventListener('pointercancel', end);
+  btn.addEventListener('pointerleave', end);
+}
+
+bindTouchBtn('btn-duck', ()=>{ inputDuck = true; }, ()=>{ inputDuck = false; });
+bindTouchBtn('btn-jump', jump);
+bindTouchBtn('btn-shoot-fwd', shoot);
+
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-continue').addEventListener('click', reset);
+
+function checkHit(a, b){
+  return Math.abs(a.x - b.x) < (a.w + b.w)/2 && Math.abs(a.y - b.y) < (a.h + b.h)/2;
+}
+
+function triggerPlayerDeath(reason) {
+  if (isDying || over) return;
+  isDying = true;
+  deathTimer = 0;
+  playSfx('die');
+  player.vy = 0.24;
+}
+
+function showRetroGameOver(titleText, descText) {
+  over = true;
+  playNokiaTune(); // เล่นเสียง Nokia 3310
+  const overlay = document.getElementById('retro-overlay');
+  document.getElementById('overlay-title').innerText = titleText;
+  document.getElementById('overlay-desc').innerHTML = descText;
+  overlay.style.display = 'flex';
+}
+
+function update(){
+  if(!gameStarted || over || won) return;
+
+  if (isDying) {
+    deathTimer += 0.016;
+    playerGroup.rotation.z += 0.28;
+    player.vy -= 0.014;
+    player.y += player.vy;
+    playerGroup.position.set(player.x, player.y, 0);
+
+    if (deathTimer > 1.2) {
+      isDying = false;
+      showRetroGameOver('จบเกม', `คะแนนรวม: ${coins} เหรียญ<br>ลองใหม่อีกครั้ง!`);
+    }
+    return;
+  }
+
+  if(currentStage === 1){
+    let isDucking = inputDuck && player.onGround;
+    let isAimingUp = joystickVector.y < -0.3;
+
+    if(isDucking){
+      if(!player.isDucking){ player.isDucking = true; playerGroup.scale.set(1, 0.5, 1); }
+    } else if(player.isDucking){
+      player.isDucking = false; playerGroup.scale.set(1, 1, 1);
+    }
+
+    if(isAimingUp){
+      if(Math.abs(joystickVector.x) > 0.25){
+        rightArm.rotation.x = -Math.PI / 1.5;
+      } else {
+        rightArm.rotation.x = -Math.PI;
+      }
+    } else {
+      rightArm.rotation.x = -Math.PI / 3;
+    }
+
+    let moveSpeed = player.isDucking ? 0.10 : player.speed;
+    let isMoving = false;
+    
+    if(Math.abs(joystickVector.x) > 0.15){
+      player.x += joystickVector.x * moveSpeed * 1.3;
+      player.dir = joystickVector.x > 0 ? 1 : -1;
+      playerGroup.rotation.y = player.dir === 1 ? 0 : Math.PI;
+      isMoving = true;
+    }
+    player.x = Math.max(-2, player.x);
+
+    if(isMoving && player.onGround){
+      let t = Date.now() * 0.012;
+      leftLeg.rotation.x = Math.sin(t) * 0.6;
+      rightLeg.rotation.x = -Math.sin(t) * 0.6;
+      leftArm.rotation.x = -Math.sin(t) * 0.5;
+    } else {
+      leftLeg.rotation.x = 0; rightLeg.rotation.x = 0; leftArm.rotation.x = 0;
+    }
+
+    let groundY = getTerrainHeight(player.x);
+    player.vy -= 0.012;
+    player.y += player.vy;
+    if(player.y <= groundY){ player.y = groundY; player.vy = 0; player.onGround = true; }
+    playerGroup.position.set(player.x, player.y, 0);
+
+    camera.position.set(player.x + 1.2, player.y + 1.2, 13);
+    camera.lookAt(player.x + 1.2, player.y + 1.2, 0);
+
+    if(player.x >= STAGE1_END){
+      currentStage = 2;
+      inCar = true;
+      playerGroup.visible = false;
+      lastCarX = car.x;
+      document.getElementById('fuel-ui').style.display = 'inline-block';
+    }
+  } 
+  
+  else if(currentStage === 2){
+    if(inCar){
+      if(joystickVector.x > 0.15 && fuel > 0){ car.vx += joystickVector.x * 0.012; }
+      if(joystickVector.x < -0.15 && fuel > 0){ car.vx += joystickVector.x * 0.010; }
+
+      car.vx *= 0.965;
+      car.x += car.vx;
+
+      let movedDist = Math.abs(car.x - lastCarX);
+      if(movedDist > 0){
+        fuel -= movedDist * 0.95;
+        lastCarX = car.x;
+      }
+
+      let targetY = getTerrainHeight(car.x);
+      let frontY = getTerrainHeight(car.x + 1.2);
+      let backY = getTerrainHeight(car.x - 1.2);
+      let slopeAngle = Math.atan2(frontY - backY, 2.4);
+
+      car.vy -= 0.013;
+      car.y += car.vy;
+
+      if(car.y <= targetY){
+        car.y = targetY; car.vy = 0; car.onGround = true;
+        car.angle += (slopeAngle - car.angle) * 0.25;
+        car.vAngle = 0;
+      } else {
+        car.onGround = false;
+        if(joystickVector.x < -0.2) car.vAngle += 0.006;
+        if(joystickVector.x > 0.2) car.vAngle -= 0.006;
+        car.vAngle *= 0.96;
+        car.angle += car.vAngle;
+      }
+
+      carGroup.position.set(car.x, car.y, 0);
+      carGroup.rotation.z = car.angle;
+      wheels.forEach(w => w.rotation.x += car.vx * 1.8);
+
+      camera.position.set(car.x + 1.8, targetY + 1.5, 13);
+      camera.lookAt(car.x + 1.8, targetY + 1.2, 0);
+
+      if(car.onGround && Math.abs(car.angle) > 1.95){
+        showRetroGameOver('รถคว่ำ!', `รถพลิกคว่ำเสียแล้ว!<br>คะแนนรวม: ${coins} เหรียญ`);
+        return;
+      }
+
+      if(fuel <= 0){
+        fuel = 0;
+        inCar = false;
+        car.vx = 0;
+        player.x = car.x;
+        player.y = car.y;
+        playerGroup.visible = true;
+      }
+
+      if(car.x >= STAGE2_END){
+        won = true;
+        showRetroGameOver('ผ่านด่านแล้ว!', `คุณชนะแล้ว!<br>คะแนนรวม: ${coins} เหรียญ`);
+      }
+    } 
+    else {
+      let groundY = getTerrainHeight(player.x);
+
+      let isDucking = inputDuck && player.onGround;
+      let isAimingUp = joystickVector.y < -0.3;
+
+      if(isDucking){
+        if(!player.isDucking){ player.isDucking = true; playerGroup.scale.set(1, 0.5, 1); }
+      } else if(player.isDucking){
+        player.isDucking = false; playerGroup.scale.set(1, 1, 1);
+      }
+
+      if(isAimingUp){
+        if(Math.abs(joystickVector.x) > 0.25){
+          rightArm.rotation.x = -Math.PI / 1.5;
+        } else {
+          rightArm.rotation.x = -Math.PI;
+        }
+      } else {
+        rightArm.rotation.x = -Math.PI / 3;
+      }
+
+      let moveSpeed = player.isDucking ? 0.10 : player.speed;
+      let isMoving = false;
+
+      if(Math.abs(joystickVector.x) > 0.15){
+        player.x += joystickVector.x * moveSpeed * 1.3;
+        player.dir = joystickVector.x > 0 ? 1 : -1;
+        playerGroup.rotation.y = player.dir === 1 ? 0 : Math.PI;
+        isMoving = true;
+      }
+
+      if(isMoving && player.onGround){
+        let t = Date.now() * 0.012;
+        leftLeg.rotation.x = Math.sin(t) * 0.6;
+        rightLeg.rotation.x = -Math.sin(t) * 0.6;
+        leftArm.rotation.x = -Math.sin(t) * 0.5;
+      } else {
+        leftLeg.rotation.x = 0; rightLeg.rotation.x = 0; leftArm.rotation.x = 0;
+      }
+
+      player.vy -= 0.012;
+      player.y += player.vy;
+      if(player.y <= groundY){ player.y = groundY; player.vy = 0; player.onGround = true; }
+      playerGroup.position.set(player.x, player.y, 0);
+
+      camera.position.set(player.x + 1.2, groundY + 1.2, 13);
+      camera.lookAt(player.x + 1.2, groundY + 1.2, 0);
+
+      if(fuel > 0 && Math.abs(player.x - car.x) < 2.0){
+        inCar = true;
+        playerGroup.visible = false;
+        lastCarX = car.x;
+      }
+
+      if(player.x >= STAGE2_END){
+        won = true;
+        showRetroGameOver('ผ่านด่านแล้ว!', `คุณชนะแล้ว!<br>คะแนนรวม: ${coins} เหรียญ`);
+      }
+    }
+  }
+
+  let activePosX = (currentStage === 1 || !inCar) ? player.x : car.x;
+  let activePosY = (currentStage === 1 || !inCar) ? player.y : car.y;
+
+  fuelList.forEach(f => {
+    if(!f.active) return;
+    if(Math.hypot(activePosX - f.mesh.position.x, activePosY - f.mesh.position.y) < 1.6){
+      f.active = false; scene.remove(f.mesh); fuel = 100; playSfx('fuel');
+    }
+  });
+
+  const coinGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.1, 16);
+  const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.2 });
+
+  for(let i = shotsList.length - 1; i >= 0; i--){
+    let s = shotsList[i];
+    s.mesh.position.x += s.vx; s.mesh.position.y += s.vy;
+
+    let sBox = { x: s.mesh.position.x, y: s.mesh.position.y, w: 1.2, h: 1.2 };
+    let hitObstacle = false;
+
+    for(let b of blocksList){
+      if(b.active && checkHit(sBox, { x: b.mesh.position.x, y: b.mesh.position.y, w: b.w, h: b.h })){
+        playSfx('hit'); b.active = false; scene.remove(b.mesh); hitObstacle = true;
+        
+        if(Math.random() < 0.5){
+          let c = new THREE.Mesh(coinGeo, coinMat);
+          c.rotation.x = Math.PI / 2;
+          c.position.set(b.mesh.position.x, b.mesh.position.y + 0.3, 0);
+          scene.add(c); coinsList.push({ mesh: c, active: true });
+        } else {
+          let pGun = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: 0x9b59b6, emissive: 0x4a235a }));
+          pGun.position.set(b.mesh.position.x, b.mesh.position.y + 0.3, 0);
+          scene.add(pGun); powerUpsList.push({ mesh: pGun, active: true });
+        }
+        break;
+      }
+    }
+
+    if(!hitObstacle){
+      for(let bd of birdsList){
+        if(bd.active && checkHit(sBox, { x: bd.mesh.position.x, y: bd.mesh.position.y, w: bd.w, h: bd.h })){
+          playSfx('hit'); bd.active = false; scene.remove(bd.mesh); hitObstacle = true; break;
+        }
+      }
+    }
+
+    if(hitObstacle || Math.abs(s.mesh.position.x - player.x) > 15 || s.mesh.position.y > 10){
+      scene.remove(s.mesh); shotsList.splice(i, 1);
+    }
+  }
+
+  powerUpsList.forEach(p => {
+    if(!p.active) return;
+    p.mesh.rotation.y += 0.05;
+    if(Math.hypot(player.x - p.mesh.position.x, player.y - p.mesh.position.y) < 1.3){
+      p.active = false; scene.remove(p.mesh); playerHasSpreadGun = true; playSfx('powerup');
+    }
+  });
+
+  coinsList.forEach(c => {
+    if(!c.active) return;
+    c.mesh.rotation.z += 0.04;
+    
+    let hitByShot = shotsList.some((s, idx) => {
+      if(Math.hypot(s.mesh.position.x - c.mesh.position.x, s.mesh.position.y - c.mesh.position.y) < 0.8){
+        scene.remove(s.mesh); shotsList.splice(idx, 1); return true;
+      }
+      return false;
+    });
+
+    if(hitByShot || Math.hypot(activePosX - c.mesh.position.x, activePosY - c.mesh.position.y) < 1.5){
+      coins++; playSfx('coin'); c.active = false; scene.remove(c.mesh);
+    }
+  });
+
+  if(currentStage === 1){
+    let pBox = { x: player.x, y: player.y + (player.isDucking ? 0.35 : 0.8), w: 0.8, h: player.isDucking ? 0.7 : 1.6 };
+    blocksList.concat(birdsList).forEach(item => {
+      if(!item.active) return;
+      let iBox = { x: item.mesh.position.x, y: item.mesh.position.y, w: item.w, h: item.h };
+      if(checkHit(pBox, iBox)){
+        lives--; playSfx('hit'); item.active = false; scene.remove(item.mesh);
+        if(lives <= 0) triggerPlayerDeath('พลังชีวิตหมด');
+      }
+    });
+  }
+
+  let weaponText = playerHasSpreadGun ? ' 🔫3ทิศ' : '';
+  let modeText = (currentStage === 2 && !inCar) ? ' (เดินเท้า)' : '';
+  document.getElementById('txt-info').innerHTML = `🪙 ${coins} &nbsp; ❤️ ${lives}${weaponText} &nbsp; ด่าน ${currentStage}${modeText}`;
+  document.getElementById('fuel-bar-fill').style.width = Math.max(0, fuel) + '%';
+}
+
+buildLevel();
+
+function animate(){
+  requestAnimationFrame(animate);
+  update();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', ()=>{
+  let size = getGameSize();
+  camera.aspect = size.width / size.height;
+  camera.updateProjectionMatrix();
+  renderer.setSize(size.width, size.height);
+});
+</script>
+</body>
+</html>
